@@ -1,0 +1,42 @@
+FROM nginxproxy/nginx-proxy:1.4-alpine
+
+ENV HEADERS_MORE_MODULE_VERSION=0.36
+
+ENV BUILD_DEPENDENCIES \
+    wget \
+    linux-headers \
+    openssl-dev \
+    pcre2-dev \
+    zlib-dev \
+    openssl \
+    abuild \
+    make \
+    gcc \
+    g++ \
+    coreutils
+
+RUN set -ex \
+    # Install basic packages and build tools
+    && apk add --no-cache ${BUILD_DEPENDENCIES} \
+    # download and extract sources
+    && NGINX_VERSION=`nginx -V 2>&1 | grep "nginx version" | awk -F/ '{ print $2}'` \
+    && cd /tmp \
+    # download nginx source
+    && wget https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz \
+    && tar -xf nginx-$NGINX_VERSION.tar.gz \
+    && mv nginx-$NGINX_VERSION nginx \
+    && rm nginx-$NGINX_VERSION.tar.gz \
+    # download headers-more-nginx-module source
+    && wget https://github.com/openresty/headers-more-nginx-module/archive/v$HEADERS_MORE_MODULE_VERSION.tar.gz \
+             -O headers-more-nginx-module-$HEADERS_MORE_MODULE_VERSION.tar.gz \
+    && tar -xf headers-more-nginx-module-$HEADERS_MORE_MODULE_VERSION.tar.gz \
+    && mv headers-more-nginx-module-$HEADERS_MORE_MODULE_VERSION headers-more-nginx-module \
+    && rm headers-more-nginx-module-$HEADERS_MORE_MODULE_VERSION.tar.gz \
+    # configure and build
+    && cd /tmp/nginx \
+    && BASE_CONFIGURE_ARGS=`nginx -V 2>&1 | grep "configure arguments" | cut -d " " -f 3-` \
+    && /bin/sh -c "./configure ${BASE_CONFIGURE_ARGS} --add-module=/tmp/headers-more-nginx-module" \
+    && make && make install \
+    # cleanup
+    && apk del  ${BUILD_DEPENDENCIES} \
+    && rm -rf /tmp/* /var/tmp/*
